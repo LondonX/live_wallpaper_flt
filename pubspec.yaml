@@ -1,0 +1,30 @@
+name: live_wallpaper_flt
+description: Live wallpaper render with flutter widgets.
+version: 0.0.1
+homepage: none
+
+environment:
+  sdk: '>=2.19.3 <3.0.0'
+  flutter: ">=2.5.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  plugin_platform_interface: ^2.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.LondonX.live_wallpaper_flt
+        pluginClass: LiveWallpaperFltPlugin
+      ios:
+        pluginClass: LiveWallpaperFltPlugin
+
+
