@@ -10,6 +10,7 @@ import io.flutter.FlutterInjector
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.embedding.engine.renderer.FlutterRenderer
+import kotlinx.coroutines.*
 import java.io.File
 
 private const val TAG = "[live_wallpaper_flt]"
@@ -34,25 +35,37 @@ class LiveWallpaperFltService : WallpaperService() {
 
     override fun onCreateEngine(): Engine {
         return object : Engine() {
+            private val scope = MainScope()
+            private var refreshJob: Job? = null
+
             override fun onCreate(surfaceHolder: SurfaceHolder?) {
                 super.onCreate(surfaceHolder)
-                Log.i(TAG, "onCreate: ")
             }
 
             override fun onVisibilityChanged(visible: Boolean) {
                 super.onVisibilityChanged(visible)
-                Log.i(TAG, "onVisibilityChanged: $visible")
                 if (visible) {
-                    val surface = surfaceHolder?.surface ?: return
-                    flutterEngine.renderer.startRenderingToSurface(surface, true)
+                    refreshJob = scope.launch {
+                        while (true) {
+                            delay(24)
+                            applyViewportMetrics()
+                        }
+                    }
+                    flutterEngine.lifecycleChannel.appIsResumed()
+                    flutterEngine.renderer.startRenderingToSurface(surfaceHolder.surface, true)
                 } else {
+                    refreshJob?.cancel()
+                    flutterEngine.lifecycleChannel.appIsPaused()
                     flutterEngine.renderer.stopRenderingToSurface()
+                    flutterEngine.lifecycleChannel.appIsInactive()
                 }
             }
 
             override fun onDestroy() {
-                Log.i(TAG, "onDestroy: ")
+                scope.cancel()
+                flutterEngine.lifecycleChannel.appIsDetached()
                 flutterEngine.renderer.stopRenderingToSurface()
+                flutterEngine.destroy()
                 super.onDestroy()
             }
 
@@ -60,19 +73,21 @@ class LiveWallpaperFltService : WallpaperService() {
                 holder: SurfaceHolder?, format: Int, width: Int, height: Int
             ) {
                 super.onSurfaceChanged(holder, format, width, height)
-                Log.i(TAG, "onSurfaceChanged: ${width}x$height")
-                val surface = holder?.surface ?: return
+                if (!flutterEngine.renderer.isDisplayingFlutterUi) return
+                applyViewportMetrics(width, height)
+            }
 
-                //TODO apply viewportMetrics调用时间
+            private fun applyViewportMetrics(
+                width: Int = resources.displayMetrics.widthPixels,
+                height: Int = resources.displayMetrics.heightPixels,
+            ) {
                 val viewportMetrics = FlutterRenderer.ViewportMetrics()
                 viewportMetrics.devicePixelRatio = resources.displayMetrics.density
-                viewportMetrics.height = resources.displayMetrics.heightPixels
-                viewportMetrics.width = resources.displayMetrics.widthPixels
+                viewportMetrics.height = height
+                viewportMetrics.width = width
                 viewportMetrics.physicalTouchSlop =
                     ViewConfiguration.get(this@LiveWallpaperFltService).scaledTouchSlop
                 flutterEngine.renderer.setViewportMetrics(viewportMetrics)
-
-                flutterEngine.renderer.startRenderingToSurface(surface, true)
                 flutterEngine.renderer.surfaceChanged(width, height)
             }
         }
