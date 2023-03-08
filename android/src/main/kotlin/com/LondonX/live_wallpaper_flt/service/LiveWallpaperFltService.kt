@@ -1,6 +1,8 @@
 package com.LondonX.live_wallpaper_flt.service
 
+import android.content.res.Configuration
 import android.service.wallpaper.WallpaperService
+import android.text.format.DateFormat
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.ViewConfiguration
@@ -11,13 +13,13 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.FlutterJNI
 import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.embedding.engine.renderer.FlutterRenderer
+import io.flutter.embedding.engine.systemchannels.SettingsChannel
 import kotlinx.coroutines.*
 import java.io.File
 
 private const val TAG = "[live_wallpaper_flt]"
 
 class LiveWallpaperFltService : WallpaperService() {
-
     override fun onCreateEngine(): Engine {
         return object : Engine() {
 
@@ -43,13 +45,18 @@ class LiveWallpaperFltService : WallpaperService() {
 
             private var width: Int? = null
             private var height: Int? = null
+            private var isDark = false
+
+            override fun onCreate(surfaceHolder: SurfaceHolder?) {
+                super.onCreate(surfaceHolder)
+                isDark = isInDarkMode()
+                applyPlatformDarkMode()
+            }
 
             private fun surfaceAttachScope(f: Surface.() -> Unit) {
                 val surface = surfaceHolder?.surface ?: return
                 val flutterJNI = FlutterRenderer::class.java.getDeclaredField("flutterJNI")
-                    .apply { isAccessible = true }
-                    .get(flutterEngine.renderer)
-                        as? FlutterJNI
+                    .apply { isAccessible = true }.get(flutterEngine.renderer) as? FlutterJNI
                 if (flutterJNI?.isAttached == true) {
                     f.invoke(surface)
                 }
@@ -63,6 +70,10 @@ class LiveWallpaperFltService : WallpaperService() {
                             delay(24)
                             surfaceAttachScope {
                                 applyViewportMetrics()
+                                if (isDark != isInDarkMode()) {
+                                    isDark = isInDarkMode()
+                                    applyPlatformDarkMode()
+                                }
                             }
                         }
                     }
@@ -111,6 +122,23 @@ class LiveWallpaperFltService : WallpaperService() {
                     flutterEngine.renderer.setViewportMetrics(viewportMetrics)
                     flutterEngine.renderer.surfaceChanged(width, height)
                 }
+            }
+
+            private fun isInDarkMode(): Boolean {
+                return resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+            }
+
+            private fun applyPlatformDarkMode() {
+                flutterEngine.settingsChannel.startMessage()
+                    .setTextScaleFactor(resources.configuration.fontScale)
+                    .setUse24HourFormat(DateFormat.is24HourFormat(this@LiveWallpaperFltService))
+                    .setPlatformBrightness(
+                        if (isInDarkMode()) {
+                            SettingsChannel.PlatformBrightness.dark
+                        } else {
+                            SettingsChannel.PlatformBrightness.light
+                        }
+                    ).send()
             }
         }
     }
