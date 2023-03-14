@@ -35,7 +35,8 @@ class LiveWallpaperFltService : WallpaperService() {
                     DartExecutor.DartEntrypoint(
                         FlutterInjector.instance().flutterLoader().findAppBundlePath(),
                         config.entryFunction,
-                    )
+                    ),
+                    listOf("is_started_from_wallpaper_service"),
                 )
                 return@lazy newEngine
             }
