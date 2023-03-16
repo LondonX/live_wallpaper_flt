@@ -6,6 +6,7 @@ import android.text.format.DateFormat
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.ViewConfiguration
+import androidx.annotation.UiThread
 import com.LondonX.live_wallpaper_flt.entity.Config
 import com.google.gson.Gson
 import io.flutter.FlutterInjector
@@ -29,17 +30,7 @@ class LiveWallpaperFltService : WallpaperService() {
                     ?: throw Exception("${TAG}invalid config file, make sure you called LiveWallpaperFlt.instance.applyConfig first.")
             }
 
-            private val flutterEngine by lazy {
-                val newEngine = FlutterEngine(this@LiveWallpaperFltService)
-                newEngine.dartExecutor.executeDartEntrypoint(
-                    DartExecutor.DartEntrypoint(
-                        FlutterInjector.instance().flutterLoader().findAppBundlePath(),
-                        config.entryFunction,
-                    ),
-                    listOf("is_started_from_wallpaper_service"),
-                )
-                return@lazy newEngine
-            }
+            private val flutterEngine = FlutterEngine(this@LiveWallpaperFltService)
 
             private val scope = MainScope()
             private var refreshJob: Job? = null
@@ -50,6 +41,13 @@ class LiveWallpaperFltService : WallpaperService() {
 
             override fun onCreate(surfaceHolder: SurfaceHolder?) {
                 super.onCreate(surfaceHolder)
+                flutterEngine.dartExecutor.executeDartEntrypoint(
+                    DartExecutor.DartEntrypoint(
+                        FlutterInjector.instance().flutterLoader().findAppBundlePath(),
+                        config.entryFunction,
+                    ),
+                    listOf("is_started_from_wallpaper_service"),
+                )
                 isDark = isInDarkMode()
                 applyPlatformDarkMode()
             }
