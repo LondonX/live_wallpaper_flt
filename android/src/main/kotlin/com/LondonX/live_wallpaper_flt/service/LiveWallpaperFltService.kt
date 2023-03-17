@@ -1,8 +1,6 @@
 package com.LondonX.live_wallpaper_flt.service
 
 import android.content.res.Configuration
-import android.os.Handler
-import android.os.Looper
 import android.service.wallpaper.WallpaperService
 import android.text.format.DateFormat
 import android.view.SurfaceHolder
@@ -21,7 +19,6 @@ import java.io.File
 private const val TAG = "[live_wallpaper_flt]"
 
 class LiveWallpaperFltService : WallpaperService() {
-    private val uiHandler = Handler(Looper.getMainLooper())
 
     override fun onCreateEngine(): Engine {
         return object : Engine() {
@@ -30,7 +27,7 @@ class LiveWallpaperFltService : WallpaperService() {
                 Gson().fromJson(json, Config::class.java)
                     ?: throw Exception("${TAG}invalid config file, make sure you called LiveWallpaperFlt.instance.applyConfig first.")
             }
-            private val flutterEngine = FlutterEngine(this@LiveWallpaperFltService)
+            private lateinit var flutterEngine: FlutterEngine
 
             private val scope = CoroutineScope(Dispatchers.Main)
             private var refreshJob: Job? = null
@@ -41,6 +38,7 @@ class LiveWallpaperFltService : WallpaperService() {
 
             override fun onCreate(surfaceHolder: SurfaceHolder?) {
                 super.onCreate(surfaceHolder)
+                flutterEngine = FlutterEngine(this@LiveWallpaperFltService)
                 flutterEngine.dartExecutor.executeDartEntrypoint(
                     DartExecutor.DartEntrypoint(
                         FlutterInjector.instance().flutterLoader().findAppBundlePath(),
@@ -52,8 +50,8 @@ class LiveWallpaperFltService : WallpaperService() {
                 applyPlatformDarkMode()
             }
 
-            private fun enginScope(f: FlutterEngine.() -> Unit) {
-                uiHandler.post {
+            private fun enginScope(f: suspend FlutterEngine.() -> Unit) {
+                scope.launch {
                     f.invoke(flutterEngine)
                 }
             }
