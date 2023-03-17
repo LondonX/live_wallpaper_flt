@@ -3,10 +3,8 @@ package com.LondonX.live_wallpaper_flt.service
 import android.content.res.Configuration
 import android.service.wallpaper.WallpaperService
 import android.text.format.DateFormat
-import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.ViewConfiguration
-import androidx.annotation.UiThread
 import com.LondonX.live_wallpaper_flt.entity.Config
 import com.google.gson.Gson
 import io.flutter.FlutterInjector
@@ -21,18 +19,17 @@ import java.io.File
 private const val TAG = "[live_wallpaper_flt]"
 
 class LiveWallpaperFltService : WallpaperService() {
+
     override fun onCreateEngine(): Engine {
         return object : Engine() {
-
             private val config by lazy {
                 val json = File(filesDir, "live_wallpaper_config.json").readText()
                 Gson().fromJson(json, Config::class.java)
                     ?: throw Exception("${TAG}invalid config file, make sure you called LiveWallpaperFlt.instance.applyConfig first.")
             }
-
             private val flutterEngine = FlutterEngine(this@LiveWallpaperFltService)
 
-            private val scope = MainScope()
+            private val scope = CoroutineScope(Dispatchers.Main)
             private var refreshJob: Job? = null
 
             private var width: Int? = null
@@ -52,13 +49,17 @@ class LiveWallpaperFltService : WallpaperService() {
                 applyPlatformDarkMode()
             }
 
-            private fun surfaceAttachScope(f: Surface.() -> Unit) {
-                val surface = surfaceHolder?.surface ?: return
-                val flutterJNI = FlutterRenderer::class.java.getDeclaredField("flutterJNI")
-                    .apply { isAccessible = true }.get(flutterEngine.renderer) as? FlutterJNI
-                if (flutterJNI?.isAttached == true) {
-                    f.invoke(surface)
+            private fun enginScope(f: suspend FlutterEngine.() -> Unit) {
+                scope.launch {
+                    f.invoke(flutterEngine)
                 }
+            }
+
+            private fun FlutterEngine.isAttached(): Boolean {
+                surfaceHolder?.surface ?: return false
+                val flutterJNI = FlutterRenderer::class.java.getDeclaredField("flutterJNI")
+                    .apply { isAccessible = true }.get(renderer) as? FlutterJNI
+                return flutterJNI?.isAttached == true
             }
 
             override fun onVisibilityChanged(visible: Boolean) {
@@ -67,7 +68,7 @@ class LiveWallpaperFltService : WallpaperService() {
                     refreshJob = scope.launch {
                         while (true) {
                             delay(24)
-                            surfaceAttachScope {
+                            if (flutterEngine.isAttached()) {
                                 applyViewportMetrics()
                                 if (isDark != isInDarkMode()) {
                                     isDark = isInDarkMode()
@@ -76,25 +77,30 @@ class LiveWallpaperFltService : WallpaperService() {
                             }
                         }
                     }
-                    flutterEngine.lifecycleChannel.appIsResumed()
-                    surfaceAttachScope {
-                        flutterEngine.renderer.startRenderingToSurface(this, true)
+                    enginScope {
+                        lifecycleChannel.appIsResumed()
+                        if (flutterEngine.isAttached()) {
+                            renderer.startRenderingToSurface(surfaceHolder.surface!!, true)
+                        }
                     }
                 } else {
                     refreshJob?.cancel()
-                    flutterEngine.lifecycleChannel.appIsPaused()
-                    surfaceAttachScope {
-                        flutterEngine.renderer.stopRenderingToSurface()
+                    enginScope {
+                        lifecycleChannel.appIsPaused()
+                        if (flutterEngine.isAttached()) {
+                            renderer.stopRenderingToSurface()
+                        }
+                        lifecycleChannel.appIsInactive()
                     }
-                    flutterEngine.lifecycleChannel.appIsInactive()
                 }
             }
 
             override fun onDestroy() {
                 refreshJob?.cancel()
-                scope.cancel()
-                flutterEngine.lifecycleChannel.appIsDetached()
-                flutterEngine.destroy()
+                enginScope {
+                    lifecycleChannel.appIsDetached()
+                    destroy()
+                }
                 super.onDestroy()
             }
 
@@ -117,9 +123,11 @@ class LiveWallpaperFltService : WallpaperService() {
                 viewportMetrics.width = width
                 viewportMetrics.physicalTouchSlop =
                     ViewConfiguration.get(this@LiveWallpaperFltService).scaledTouchSlop
-                surfaceAttachScope {
-                    flutterEngine.renderer.setViewportMetrics(viewportMetrics)
-                    flutterEngine.renderer.surfaceChanged(width, height)
+                enginScope {
+                    if (flutterEngine.isAttached()) {
+                        renderer.setViewportMetrics(viewportMetrics)
+                        renderer.surfaceChanged(width, height)
+                    }
                 }
             }
 
@@ -128,16 +136,18 @@ class LiveWallpaperFltService : WallpaperService() {
             }
 
             private fun applyPlatformDarkMode() {
-                flutterEngine.settingsChannel.startMessage()
-                    .setTextScaleFactor(resources.configuration.fontScale)
-                    .setUse24HourFormat(DateFormat.is24HourFormat(this@LiveWallpaperFltService))
-                    .setPlatformBrightness(
-                        if (isInDarkMode()) {
-                            SettingsChannel.PlatformBrightness.dark
-                        } else {
-                            SettingsChannel.PlatformBrightness.light
-                        }
-                    ).send()
+                enginScope {
+                    settingsChannel.startMessage()
+                        .setTextScaleFactor(resources.configuration.fontScale)
+                        .setUse24HourFormat(DateFormat.is24HourFormat(this@LiveWallpaperFltService))
+                        .setPlatformBrightness(
+                            if (isInDarkMode()) {
+                                SettingsChannel.PlatformBrightness.dark
+                            } else {
+                                SettingsChannel.PlatformBrightness.light
+                            }
+                        ).send()
+                }
             }
         }
     }
