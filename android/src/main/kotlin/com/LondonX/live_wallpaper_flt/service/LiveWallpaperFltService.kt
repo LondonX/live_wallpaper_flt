@@ -1,6 +1,8 @@
 package com.LondonX.live_wallpaper_flt.service
 
 import android.content.res.Configuration
+import android.os.Handler
+import android.os.Looper
 import android.service.wallpaper.WallpaperService
 import android.text.format.DateFormat
 import android.view.SurfaceHolder
@@ -19,6 +21,7 @@ import java.io.File
 private const val TAG = "[live_wallpaper_flt]"
 
 class LiveWallpaperFltService : WallpaperService() {
+    private val uiHandler = Handler(Looper.getMainLooper())
 
     override fun onCreateEngine(): Engine {
         return object : Engine() {
@@ -49,8 +52,8 @@ class LiveWallpaperFltService : WallpaperService() {
                 applyPlatformDarkMode()
             }
 
-            private fun enginScope(f: suspend FlutterEngine.() -> Unit) {
-                scope.launch {
+            private fun enginScope(f: FlutterEngine.() -> Unit) {
+                uiHandler.post {
                     f.invoke(flutterEngine)
                 }
             }
