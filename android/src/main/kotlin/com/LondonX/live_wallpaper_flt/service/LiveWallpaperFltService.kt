@@ -50,7 +50,7 @@ class LiveWallpaperFltService : WallpaperService() {
                 applyPlatformDarkMode()
             }
 
-            private fun enginScope(f: suspend FlutterEngine.() -> Unit) {
+            private fun engineScope(f: suspend FlutterEngine.() -> Unit) {
                 scope.launch {
                     f.invoke(flutterEngine)
                 }
@@ -78,7 +78,7 @@ class LiveWallpaperFltService : WallpaperService() {
                             }
                         }
                     }
-                    enginScope {
+                    engineScope {
                         lifecycleChannel.appIsResumed()
                         if (flutterEngine.isAttached()) {
                             renderer.startRenderingToSurface(surfaceHolder.surface!!, true)
@@ -86,7 +86,7 @@ class LiveWallpaperFltService : WallpaperService() {
                     }
                 } else {
                     refreshJob?.cancel()
-                    enginScope {
+                    engineScope {
                         lifecycleChannel.appIsPaused()
                         if (flutterEngine.isAttached()) {
                             renderer.stopRenderingToSurface()
@@ -98,7 +98,7 @@ class LiveWallpaperFltService : WallpaperService() {
 
             override fun onDestroy() {
                 refreshJob?.cancel()
-                enginScope {
+                engineScope {
                     lifecycleChannel.appIsDetached()
                     destroy()
                 }
@@ -124,7 +124,7 @@ class LiveWallpaperFltService : WallpaperService() {
                 viewportMetrics.width = width
                 viewportMetrics.physicalTouchSlop =
                     ViewConfiguration.get(this@LiveWallpaperFltService).scaledTouchSlop
-                enginScope {
+                engineScope {
                     if (flutterEngine.isAttached()) {
                         renderer.setViewportMetrics(viewportMetrics)
                         renderer.surfaceChanged(width, height)
@@ -137,7 +137,7 @@ class LiveWallpaperFltService : WallpaperService() {
             }
 
             private fun applyPlatformDarkMode() {
-                enginScope {
+                engineScope {
                     settingsChannel.startMessage()
                         .setTextScaleFactor(resources.configuration.fontScale)
                         .setUse24HourFormat(DateFormat.is24HourFormat(this@LiveWallpaperFltService))

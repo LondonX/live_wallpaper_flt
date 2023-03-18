@@ -43,7 +43,7 @@ class LiveWallpaperFltPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                         WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,
                         ComponentName(this, LiveWallpaperFltService::class.java)
                     )
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+//                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     this.startActivity(intent)
                     result.success(true)
                 }
