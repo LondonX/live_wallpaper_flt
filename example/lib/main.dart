@@ -1,8 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
-
-import 'package:flutter/services.dart';
-import 'package:live_wallpaper_flt/live_wallpaper_flt.dart';
 
 void main() {
   runApp(const MyApp());
